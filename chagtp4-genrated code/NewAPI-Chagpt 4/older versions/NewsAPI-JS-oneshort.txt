@@ -1,0 +1,86 @@
+const express = require('express');
+const bodyParser = require('body-parser');
+const helmet = require('helmet');
+
+const app = express();
+const PORT = 3000;
+
+// Middlewares
+app.use(bodyParser.json());
+app.use(helmet()); // Set various HTTP headers to help protect the app
+
+// In-memory database
+const newsDB = [];
+
+// Middleware to verify API key
+function verifyApiKey(req, res, next) {
+    const apiKey = req.headers['x-api-key'];
+    const validApiKey = "YOUR_SECRET_API_KEY"; // This should be in environment variables in a real-world app
+
+    if (apiKey !== validApiKey) {
+        return res.status(403).json({ message: 'Invalid API key' });
+    }
+
+    next();
+}
+
+// Middleware for basic input validation
+function validateNewsInput(req, res, next) {
+    const { title, content } = req.body;
+    
+    if (!title || !content) {
+        return res.status(400).json({ message: 'Title and content are required.' });
+    }
+
+    next();
+}
+
+// Get all news
+app.get('/news', (req, res) => {
+    res.json(newsDB);
+});
+
+// Add news
+app.post('/news', verifyApiKey, validateNewsInput, (req, res) => {
+    const newsItem = {
+        id: newsDB.length + 1,
+        title: req.body.title,
+        content: req.body.content,
+        date: new Date().toISOString().split('T')[0],
+    };
+
+    newsDB.push(newsItem);
+    res.json(newsItem);
+});
+
+// Update news by ID
+app.put('/news/:id', verifyApiKey, validateNewsInput, (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    const newsItem = newsDB.find(n => n.id === id);
+
+    if (!newsItem) {
+        return res.status(404).json({ message: 'News item not found' });
+    }
+
+    newsItem.title = req.body.title;
+    newsItem.content = req.body.content;
+
+    res.json(newsItem);
+});
+
+// Delete news by ID
+app.delete('/news/:id', verifyApiKey, (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    const index = newsDB.findIndex(n => n.id === id);
+
+    if (index === -1) {
+        return res.status(404).json({ message: 'News item not found' });
+    }
+
+    newsDB.splice(index, 1);
+    res.json({ message: 'News item deleted' });
+});
+
+app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+});

@@ -1,0 +1,92 @@
+const express = require('express');
+const bodyParser = require('body-parser');
+const helmet = require('helmet');
+const jwt = require('jsonwebtoken');
+
+const app = express();
+const PORT = 3000;
+const SECRET_KEY = "YOUR_SECRET_KEY";  // Use environment variable in production
+
+// Mock Database
+const newsDB = [];
+const apiKeys = ["API_KEY_1", "API_KEY_2"];  // In real-world, use a DB or dynamic management
+
+app.use(bodyParser.json());
+app.use(helmet());  // Add security headers
+
+// Verify API key middleware
+function verifyApiKey(req, res, next) {
+    const apiKey = req.headers['x-api-key'];
+    if (!apiKeys.includes(apiKey)) {
+        return res.status(403).json({ message: 'Invalid API key' });
+    }
+    next();
+}
+
+// Create JWT for user (for the sake of demonstration)
+app.get('/token', (req, res) => {
+    const token = jwt.sign({ user: 'user_id' }, SECRET_KEY);
+    res.json({ token });
+});
+
+// Verify JWT Middleware
+function verifyToken(req, res, next) {
+    const bearerHeader = req.headers['authorization'];
+
+    if (typeof bearerHeader !== 'undefined') {
+        const bearer = bearerHeader.split(' ');
+        const bearerToken = bearer[1];
+        jwt.verify(bearerToken, SECRET_KEY, (err, data) => {
+            if (err) {
+                res.status(403).json({ message: 'Invalid token' });
+            } else {
+                req.user = data.user;
+                next();
+            }
+        });
+    } else {
+        res.status(403).json({ message: 'Token is required' });
+    }
+}
+
+// Endpoints
+
+app.get('/news', (req, res) => {
+    res.json(newsDB);
+});
+
+app.post('/news', verifyApiKey, verifyToken, (req, res) => {
+    const newsItem = {
+        id: newsDB.length + 1,
+        title: req.body.title,
+        content: req.body.content,
+        date: new Date().toISOString().split('T')[0],
+    };
+    newsDB.push(newsItem);
+    res.json(newsItem);
+});
+
+app.put('/news/:id', verifyApiKey, verifyToken, (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    const newsItem = newsDB.find(n => n.id === id);
+    if (!newsItem) {
+        return res.status(404).json({ message: 'News item not found' });
+    }
+    newsItem.title = req.body.title;
+    newsItem.content = req.body.content;
+    res.json(newsItem);
+});
+
+app.delete('/news/:id', verifyApiKey, verifyToken, (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    const index = newsDB.findIndex(n => n.id === id);
+    if (index === -1) {
+        return res.status(404).json({ message: 'News item not found' });
+    }
+    newsDB.splice(index, 1);
+    res.json({ message: 'News item deleted' });
+});
+
+app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+});

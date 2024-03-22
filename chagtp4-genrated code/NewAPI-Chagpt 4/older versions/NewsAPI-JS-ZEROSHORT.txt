@@ -1,0 +1,84 @@
+const express = require('express');
+const bodyParser = require('body-parser');
+
+const app = express();
+const PORT = 3000;
+
+app.use(bodyParser.json());
+
+let newsDB = [];
+
+function verifyApiKey(req, res, next) {
+    const apiKey = req.headers['x-api-key'];
+    const validApiKey = "YOUR_SECRET_API_KEY"; 
+
+    if (apiKey !== validApiKey) {
+        return res.status(403).json({ message: 'Invalid API key' });
+    }
+
+    next();
+}
+
+// Get all news headlines
+app.get('/news/headlines', (req, res) => {
+    const headlines = newsDB.map(news => ({ id: news.id, title: news.title }));
+    res.json(headlines);
+});
+
+// Search news articles by ID
+app.get('/news/:id', (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    const newsItem = newsDB.find(n => n.id === id);
+    
+    if (!newsItem) {
+        return res.status(404).json({ message: 'News item not found' });
+    }
+
+    res.json(newsItem);
+});
+
+// Search news articles by date
+app.get('/news/date/:date', (req, res) => {
+    const date = req.params.date;
+    const filteredNews = newsDB.filter(n => n.date === date);
+    res.json(filteredNews);
+});
+
+// Add news (with API key verification)
+app.post('/news', verifyApiKey, (req, res) => {
+    const newsItem = {
+        id: newsDB.length + 1,
+        title: req.body.title,
+        content: req.body.content,
+        date: new Date().toISOString().split('T')[0],  // Format: YYYY-MM-DD
+        comments: []
+    };
+
+    newsDB.push(newsItem);
+    res.json(newsItem);
+});
+
+// Add comments on articles by ID (with API key verification)
+app.post('/news/:id/comments', verifyApiKey, (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    const newsItem = newsDB.find(n => n.id === id);
+
+    if (!newsItem) {
+        return res.status(404).json({ message: 'News item not found' });
+    }
+
+    const comment = {
+        commentId: newsItem.comments.length + 1,
+        text: req.body.text,
+        date: new Date().toISOString()
+    };
+
+    newsItem.comments.push(comment);
+    res.json(comment);
+});
+
+// ... [rest of the endpoints unchanged] ...
+
+app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+});
